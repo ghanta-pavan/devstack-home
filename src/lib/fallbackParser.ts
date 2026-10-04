@@ -1,4 +1,20 @@
-import { ResumeSchema } from "@/types/resume";
+import type { ResumeSchema } from "../types/resume.ts";
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function isSkillInText(tech: string, text: string): boolean {
+  const escaped = escapeRegExp(tech);
+  const startsWithWord = /^[a-zA-Z0-9]/.test(tech);
+  const endsWithWord = /[a-zA-Z0-9]$/.test(tech);
+
+  const prefix = startsWithWord ? "(?:^|[^a-zA-Z0-9])" : "(?:^|\\s)";
+  const suffix = endsWithWord ? "(?:$|[^a-zA-Z0-9])" : "(?:$|[^a-zA-Z0-9+#])";
+
+  const regex = new RegExp(`${prefix}${escaped}${suffix}`, "i");
+  return regex.test(text);
+}
 
 /**
  * Fallback parser using regex and heuristics to extract structured information
@@ -56,13 +72,13 @@ export function fallbackParseTextToResume(rawText: string): ResumeSchema {
   // Extract skills heuristic
   const skillsList: string[] = [];
   const commonTech = [
-    "JavaScript", "TypeScript", "React", "Next.js", "Node.js", "Python", "Go", "Rust",
-    "Java", "C++", "AWS", "GCP", "Azure", "Docker", "Kubernetes", "PostgreSQL",
-    "MongoDB", "GraphQL", "REST API", "Tailwind CSS", "Redis", "Terraform", "CI/CD"
+    "JavaScript", "TypeScript", "React", "Next.js", "Node.js", "Vue.js", "Python", "Go", "Rust",
+    "Java", "C++", "C#", ".NET", "AWS", "GCP", "Azure", "Docker", "Kubernetes", "PostgreSQL",
+    "MongoDB", "GraphQL", "REST API", "Tailwind CSS", "Redis", "Terraform", "CI/CD", "HTML5/CSS3"
   ];
 
   for (const tech of commonTech) {
-    if (new RegExp(`\\b${tech}\\b`, "i").test(rawText)) {
+    if (isSkillInText(tech, rawText)) {
       skillsList.push(tech);
     }
   }

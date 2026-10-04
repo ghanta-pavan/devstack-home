@@ -1,5 +1,4 @@
 import { parseResumeText } from "@/lib/geminiParser";
-import { fallbackParseTextToResume } from "@/lib/fallbackParser";
 
 export async function parseDocumentFile(file: File, apiKeyOverride?: string) {
   const fileName = file.name.toLowerCase();
@@ -22,7 +21,7 @@ export async function parseDocumentFile(file: File, apiKeyOverride?: string) {
         const page = await pdfDoc.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items
-          .map((item: any) => item.str)
+          .map((item) => ("str" in item ? (item as { str: string }).str : ""))
           .join(" ");
         extractedText += pageText + "\n";
       }
