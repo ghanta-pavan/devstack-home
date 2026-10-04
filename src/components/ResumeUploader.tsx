@@ -3,14 +3,14 @@
 import React, { useState } from "react";
 import { parseDocumentFile } from "@/lib/fileExtractor";
 import { ResumeSchema, SAMPLE_RESUME } from "@/types/resume";
-import { Upload, FileText, Sparkles, Key, CheckCircle, RefreshCw } from "lucide-react";
+import { Upload, Sparkles, Key, CheckCircle, RefreshCw } from "lucide-react";
 
 interface Props {
   onParsed: (data: ResumeSchema) => void;
-  currentData: ResumeSchema;
+  currentData?: ResumeSchema;
 }
 
-export function ResumeUploader({ onParsed, currentData }: Props) {
+export function ResumeUploader({ onParsed }: Props) {
   const [loading, setLoading] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +28,10 @@ export function ResumeUploader({ onParsed, currentData }: Props) {
       const parsed = await parseDocumentFile(file, apiKey || undefined);
       onParsed(parsed);
       setSuccessMsg(`Successfully extracted resume data for "${parsed.name}"!`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err?.message || "Failed to process resume file.");
+      const msg = err instanceof Error ? err.message : "Failed to process resume file.";
+      setError(msg);
     } finally {
       setLoading(false);
     }

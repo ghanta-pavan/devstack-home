@@ -15,10 +15,11 @@ export async function POST(req: NextRequest) {
 
     const parsedResume = await parseResumeText(text, apiKey);
     return NextResponse.json({ success: true, data: parsedResume });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API Route /api/parse-resume error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to process resume parsing request.";
     return NextResponse.json(
-      { error: error?.message || "Failed to process resume parsing request." },
+      { error: errorMessage },
       { status: 500 }
     );
   }
