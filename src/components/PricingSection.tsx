@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Check, Shield, Zap, Globe, Sparkles } from "lucide-react";
+import { Check, Zap, Sparkles } from "lucide-react";
 
 export function PricingSection() {
   const [billingCycle, setBillingCycle] = useState<"onetime" | "annual">("onetime");

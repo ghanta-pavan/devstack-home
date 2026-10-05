@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Server, Database, Zap, Globe, Shield, ArrowRight, Lock, FileCode, CheckCircle2 } from "lucide-react";
+import { Server, Database, Zap, Globe, Shield, Lock, FileCode, CheckCircle2 } from "lucide-react";
 
 export function ArchitectureDiagram() {
   const [activeStep, setActiveStep] = useState<number>(1);
@@ -134,7 +134,7 @@ export function ArchitectureDiagram() {
                   <span>Security Directive: No Raw JavaScript Executed</span>
                 </div>
                 <div className="text-slate-500 text-[11px]">
-                  Middleware Rewrite: host.split('.')[0] &rarr; Upstash Redis Key lookup &rarr; React Component Hydration
+                  Middleware Rewrite: host.split(&apos;.&apos;)[0] &rarr; Upstash Redis Key lookup &rarr; React Component Hydration
                 </div>
               </div>
             </div>

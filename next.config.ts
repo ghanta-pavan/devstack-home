@@ -1,16 +1,11 @@
 import type { NextConfig } from "next";
 
-const isGithubActions = process.env.GITHUB_ACTIONS || false;
-let repo = "";
-if (isGithubActions && process.env.GITHUB_REPOSITORY) {
-  repo = process.env.GITHUB_REPOSITORY.replace(/.*?\//, "");
-}
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  output: isGithubActions ? "export" : undefined,
-  basePath: isGithubActions && repo ? `/${repo}` : "",
-  assetPrefix: isGithubActions && repo ? `/${repo}/` : "",
+  output: process.env.GITHUB_ACTIONS ? "export" : undefined,
+  basePath: basePath,
   images: {
     unoptimized: true,
   },

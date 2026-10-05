@@ -10,14 +10,9 @@ import {
   Sun,
   Moon,
   Zap,
-  Globe,
   Sparkles,
   ArrowRight,
-  Shield,
-  Layers,
-  FileText,
-  Check,
-  Share2
+  Check
 } from "lucide-react";
 
 export default function Home() {
