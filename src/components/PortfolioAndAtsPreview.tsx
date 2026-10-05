@@ -9,6 +9,7 @@ import {
   Award,
   ExternalLink,
   Mail,
+  Phone,
   Globe,
   MapPin,
   CheckCircle2,
@@ -360,6 +361,7 @@ export function PortfolioAndAtsPreview({ data, onChange }: Props) {
               <p className="text-sm font-semibold text-slate-700 mt-1">{data.title}</p>
               <div className="text-xs text-slate-600 mt-2 space-x-3 font-sans">
                 {data.location && <span>{data.location}</span>}
+                {data.contact.phone && <span>• {data.contact.phone}</span>}
                 {data.contact.email && <span>• {data.contact.email}</span>}
                 {data.contact.linkedin && <span>• {data.contact.linkedin}</span>}
               </div>
