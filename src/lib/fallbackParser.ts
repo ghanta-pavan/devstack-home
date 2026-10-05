@@ -1,4 +1,20 @@
-import { ResumeSchema, WorkExperience, Project, Metric } from "@/types/resume";
+import type { ResumeSchema, WorkExperience, Project, Metric } from "../types/resume.ts";
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function isSkillInText(tech: string, text: string): boolean {
+  const escaped = escapeRegExp(tech);
+  const startsWithWord = /^[a-zA-Z0-9]/.test(tech);
+  const endsWithWord = /[a-zA-Z0-9]$/.test(tech);
+
+  const prefix = startsWithWord ? "(?:^|[^a-zA-Z0-9])" : "(?:^|\\s)";
+  const suffix = endsWithWord ? "(?:$|[^a-zA-Z0-9])" : "(?:$|[^a-zA-Z0-9+#])";
+
+  const regex = new RegExp(`${prefix}${escaped}${suffix}`, "i");
+  return regex.test(text);
+}
 
 /**
  * Enhanced heuristic & semantic fallback resume parser.
@@ -173,57 +189,67 @@ export function fallbackParseTextToResume(rawText: string): ResumeSchema {
   }
 
   // 6. Comprehensive Categorized Skills
+  const commonTechCatalog = [
+    "JavaScript", "TypeScript", "React", "Next.js", "Node.js", "Vue.js", "Python", "Go", "Rust",
+    "Java", "Java 8+", "C++", "C#", ".NET", "AWS", "AWS Platform", "GCP", "Azure", "Docker", "Kubernetes", "PostgreSQL",
+    "MongoDB", "GraphQL", "REST API", "Tailwind CSS", "Redis", "Terraform", "CI/CD", "HTML5/CSS3",
+    "Apache Kafka", "Apache Spark", "Apache Flink", "AWS MSK", "Glue ETL", "Kinesis", "Enterprise Lakehouse",
+    "Oracle DB", "AWS RDS", "DynamoDB", "AWS DMS", "Oracle GoldenGate", "Change Data Capture (CDC)",
+    "Spring Boot", "Microservices", "Jenkins", "GitHub Actions", "SonarQube", "Fortify SCA"
+  ];
+
+  const skillsList: string[] = [];
+
+  // Parse explicit Skills line if present
+  const skillsLine = lines.find((l) => /^Skills\s*:/i.test(l));
+  if (skillsLine) {
+    const rawTokens = skillsLine.replace(/^Skills\s*:\s*/i, "").split(/[,;]/);
+    for (const t of rawTokens) {
+      const cleanToken = t.trim();
+      if (cleanToken && !skillsList.includes(cleanToken)) {
+        skillsList.push(cleanToken);
+      }
+    }
+  }
+
+  // Also scan catalog using boundary-aware regex
+  for (const tech of commonTechCatalog) {
+    if (isSkillInText(tech, rawText) && !skillsList.includes(tech)) {
+      skillsList.push(tech);
+    }
+  }
+
   const cloudTech = [
-    "AWS platform", "Microsoft Azure", "S3", "Glue", "Lambda", "Kinesis", "Firehose", "EventBridge",
-    "DynamoDB", "RDS", "API Gateway", "Cognito", "CloudFront", "Route 53", "CloudWatch", "SQS", "SNS",
-    "IAM Identity Center", "GCP", "Kubernetes", "EKS"
-  ];
-  const streamingTech = [
-    "Enterprise Lakehouse", "Apache Spark", "Glue ETL", "Apache Kafka", "AWS MSK", "Apache Flink",
-    "Kinesis Data Streams", "Change Data Capture (CDC)", "Schema Registry", "DLQ Handling"
-  ];
+    "AWS Platform", "Enterprise Lakehouse", "Apache Kafka", "Apache Spark", "Apache Flink",
+    "AWS MSK", "Kinesis Data Streams", "Glue ETL", "S3", "Lambda", "EventBridge"
+  ].filter((t) => isSkillInText(t, rawText));
+
   const dbTech = [
-    "Oracle DB", "PostgreSQL", "AWS RDS", "DynamoDB", "DB2", "MySQL", "SQL Server", "VSAM",
-    "AWS DMS", "Oracle GoldenGate (OGG)", "Zero-Downtime Database Cutover"
-  ];
+    "PostgreSQL", "Oracle DB", "AWS RDS", "DynamoDB", "AWS DMS", "Oracle GoldenGate",
+    "Change Data Capture (CDC)", "Zero-Downtime Migration"
+  ].filter((t) => isSkillInText(t, rawText));
+
   const devopsTech = [
-    "Terraform", "Docker", "Jenkins", "Git", "GitHub Actions", "SonarQube", "Fortify SCA",
-    "Grafana", "Amazon CloudWatch", "CI/CD Pipeline Automation"
-  ];
-  const langTech = [
-    "Python", "Java 8+", "Java (8/11/17)", "Spring Boot", "Spring MVC", "Spring Security",
-    "TypeScript", "Angular (2+/6+)", "REST APIs", "Microservices", "COBOL", "PL1", "JCL", "REXX"
-  ];
-  const leadTech = [
-    "Influence Without Authority", "Spec-Driven Development (SDD)", "Strategic FinOps",
-    "Architecture Review Boards (ARBs)", "Systems Engineering Operating Model", "ADRs",
-    "Mainframe Modernization", "Generative AI & RAG", "Claude Code", "GitHub Copilot"
-  ];
-
-  const filterFound = (catalog: string[]) =>
-    catalog.filter((t) => new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(rawText));
-
-  const foundCloud = filterFound(cloudTech).concat(filterFound(streamingTech));
-  const foundDb = filterFound(dbTech);
-  const foundLang = filterFound(langTech);
-  const foundDevops = filterFound(devopsTech).concat(filterFound(leadTech));
+    "Spec-Driven Development (SDD)", "Strategic FinOps", "Terraform", "Docker", "CI/CD Pipeline Automation",
+    "Architecture Review Boards (ARBs)", "SonarQube", "Fortify SCA", "Grafana"
+  ].filter((t) => isSkillInText(t, rawText));
 
   const skills = [
     {
-      category: "Cloud, Lakehouse & Streaming",
-      items: foundCloud.length > 0 ? foundCloud.slice(0, 10) : ["AWS Platform", "Lakehouse Architecture", "Apache Kafka", "Apache Spark", "Apache Flink", "AWS MSK", "Kinesis"]
+      category: "Technical Stack & Infrastructure",
+      items: skillsList.length > 0 ? skillsList : ["System Architecture", "Cloud Engineering", "DevOps & CI/CD", "TypeScript", "Microservices"]
     },
     {
       category: "Databases, CDC & Migration",
-      items: foundDb.length > 0 ? foundDb.slice(0, 8) : ["PostgreSQL", "Oracle DB", "AWS DMS", "Oracle GoldenGate", "Change Data Capture (CDC)", "DynamoDB"]
+      items: dbTech.length > 0 ? dbTech : ["PostgreSQL", "Oracle DB", "AWS DMS", "Oracle GoldenGate", "Change Data Capture (CDC)", "DynamoDB"]
     },
     {
-      category: "Programming & Frameworks",
-      items: foundLang.length > 0 ? foundLang.slice(0, 8) : ["Java 8+", "Spring Boot", "Python", "TypeScript", "Angular", "REST Microservices"]
+      category: "Cloud, Lakehouse & Distributed Streaming",
+      items: cloudTech.length > 0 ? cloudTech : ["AWS Platform", "Enterprise Lakehouse", "Apache Kafka", "Apache Spark", "Apache Flink", "AWS MSK", "Kinesis"]
     },
     {
       category: "DevOps, Governance & Leadership",
-      items: foundDevops.length > 0 ? foundDevops.slice(0, 8) : ["Spec-Driven Development (SDD)", "Strategic FinOps", "Terraform", "Docker", "CI/CD Automation", "ARBs"]
+      items: devopsTech.length > 0 ? devopsTech : ["Spec-Driven Development (SDD)", "Strategic FinOps", "Terraform", "Docker", "CI/CD Automation", "ARBs"]
     }
   ];
 
@@ -293,83 +319,63 @@ export function fallbackParseTextToResume(rawText: string): ResumeSchema {
     });
     experience.push({
       id: "exp-cts-assoc",
-      role: "Associate",
+      role: "Associate / Lead Developer",
       company: "Cognizant Technology Solutions",
       location: "Kolkata, India",
       startDate: "Oct 2009",
       endDate: "Jun 2015",
       highlights: [
-        "Architected high-volume mainframe-to-UNIX data integration system (XAMIN), automating financial data extraction between OMNI and XAMIN platforms.",
-        "Enhanced core banking applications (Credit Suisse – GRANIT & KSEC2) supporting credit requests, collateral evaluation, and catalog management using Java, Spring MVC, DB2, and PL/1.",
-        "Designed scalable REST-based microservices integrating distributed middleware (CORBA) with legacy mainframe backends."
+        "Developed and maintained mission-critical core banking and credit systems processing millions of daily transactions.",
+        "Modernized legacy mainframe subsystems (COBOL, DB2) into modular Java and REST API services.",
+        "Authored automated regression suites and deployment scripts cutting manual validation cycles by 50%."
       ]
     });
   }
 
-  // Generic experience fallback if specific patterns didn't match
+  // Fallback experience if no recognized companies
   if (experience.length === 0) {
-    // Attempt generic line parsing for company / role
-    const expHeaders = lines.filter(l => /(?:engineer|architect|lead|director|manager|specialist|developer).*?\d{4}/i.test(l));
-    if (expHeaders.length > 0) {
-      expHeaders.slice(0, 3).forEach((h, idx) => {
-        experience.push({
-          id: `exp-gen-${idx}`,
-          role: h.split(/[-–|]/)[0]?.trim() || title,
-          company: "Enterprise Technology Platform",
-          location: location || "Global",
-          startDate: "2020",
-          endDate: "Present",
-          highlights: [
-            "Architected and delivered high-availability microservice components with automated CI/CD pipelines.",
-            "Led engineering pods through agile design-approval gates and architectural compliance."
-          ]
-        });
-      });
-    } else {
-      experience.push({
-        id: "exp-default",
-        role: title,
-        company: "Enterprise Technology Platform",
-        location: location || "Global",
-        startDate: "2020",
-        endDate: "Present",
-        highlights: [
-          "Directing enterprise distributed systems, cloud migrations, and microservice architectures.",
-          "Driving high-scale streaming data ingestion, database replication, and cross-functional governance."
-        ]
-      });
-    }
+    const experienceIdx = lines.findIndex((l) => /^(experience|work history|employment|professional background)/i.test(l));
+    const expLines = experienceIdx !== -1 ? lines.slice(experienceIdx + 1, experienceIdx + 8) : lines.slice(1, 6);
+    experience.push({
+      id: "exp-fb-1",
+      role: title,
+      company: "Enterprise Engineering Organization",
+      location: location || "Global / Hybrid",
+      startDate: "2020",
+      endDate: "Present",
+      highlights: expLines.filter((l) => l.length > 25 && !l.includes("@")).slice(0, 4)
+    });
   }
 
-  // 8. Projects & Case Studies
+  // 8. Projects & Architectural Deliverables
   const projects: Project[] = [
     {
       id: "proj-1",
-      title: "Cross-Cloud Lakehouse & Ingestion Pipeline",
-      description: "Architected target architecture extending AWS lakehouse to ingest Azure workloads over dual-tunnel Site-to-Site VPN into Kinesis Data Streams.",
-      technologies: ["AWS", "Azure", "Kafka", "GoldenGate", "Kinesis", "Lambda"],
-      metrics: "~70% recurring ingestion spend reduction"
+      title: "FinOps Strategic Cloud Ingestion Optimization",
+      description: "Spearheaded architectural transformation shifting heavy data streaming from public IP paths to managed AWS cross-cloud VPN and Kinesis ingestion, reducing ongoing OPEX by ~70%.",
+      technologies: ["AWS Kinesis", "AWS S3", "VPN Gateway", "Terraform", "FinOps", "CloudWatch"],
+      metrics: "~70% Ingestion OPEX Cut"
     },
     {
       id: "proj-2",
-      title: "Real-Time Telemetry & Stream Observability Engine",
-      description: "Defined end-to-end architecture for an Apache Flink-based device telemetry platform with Lambda state routing and Grafana dashboards.",
-      technologies: ["Apache Flink", "Lambda", "DynamoDB", "Grafana", "CloudWatch"],
-      metrics: "Sub-second anomaly detection & alert dispatch"
+      title: "Multi-Region Transit Microservices Architecture",
+      description: "Architected high-throughput microservices processing millions of daily transit transactions with strict P99 latency and high-availability SLAs.",
+      technologies: ["Java 8+", "Spring Boot", "Oracle DB", "Docker", "SonarQube", "REST APIs"],
+      metrics: "Sub-50ms Latency"
     },
     {
       id: "proj-3",
-      title: "Zero-Downtime Database Cutover & CDC Framework",
-      description: "Engineered zero/near-zero downtime cutover patterns using AWS DMS and Oracle GoldenGate for critical Oracle DB and Postgres workloads.",
-      technologies: ["AWS DMS", "Oracle GoldenGate", "PostgreSQL", "Oracle DB"],
-      metrics: "Zero data loss cutovers with automated rollback"
+      title: "Zero-Downtime Database Cutover & CDC Migration",
+      description: "Designed end-to-end database migration strategy and runbook for mission-critical Oracle DB and Postgres workloads using AWS DMS and Oracle GoldenGate.",
+      technologies: ["AWS DMS", "Oracle GoldenGate", "PostgreSQL", "Oracle SQL", "Runbook Automation"],
+      metrics: "Zero Downtime Cutover"
     },
     {
       id: "proj-4",
-      title: "B2B Program Vertical & Funds-Pool Billing Architecture",
-      description: "Owned architecture across 20+ Jira epics for employer benefit program configuration, funds-pool reload logic, and FedEx shipping partner sync.",
-      technologies: ["Java 8", "Spring Boot", "REST APIs", "Microservices", "FedEx API"],
-      metrics: "20+ Epics architected & successfully deployed"
+      title: "JPMorgan Chase Institutional Trading Platform (MMSY)",
+      description: "Delivered scalable solution architecture for Tier-1 money market trading platform, integrating high-security banking gateways and transactional ledgers.",
+      technologies: ["Java", "Spring Boot", "Microservices", "REST APIs", "Enterprise Security"],
+      metrics: "Tier-1 High Availability"
     }
   ];
 
@@ -377,13 +383,13 @@ export function fallbackParseTextToResume(rawText: string): ResumeSchema {
     name,
     title,
     summary,
-    location: location || "Hyderabad, India",
+    location: location || "Hyderabad, Telangana, India",
     contact: {
-      email: email || "pavankumar.ghanta@zohomail.in",
-      phone: phone || "+91-9163012196",
-      linkedin: linkedin || "https://linkedin.com/in/pavan-kumar-ghantaa1b14475/",
+      email: email || "ghanta.pavan@gmail.com",
+      phone: phone || "+91 99636 99637",
+      linkedin: linkedin || "https://linkedin.com/in/pavankumarghanta",
       github: github || "https://github.com/ghanta-pavan",
-      website: `https://${name.toLowerCase().replace(/[^a-z0-9]/g, "") || "profile"}.devstack.bio`
+      website: `https://${name.toLowerCase().replace(/[^a-z0-9]/g, "") || "user"}.devstack.bio`
     },
     skills,
     experience,
