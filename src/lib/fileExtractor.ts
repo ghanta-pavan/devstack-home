@@ -1,19 +1,30 @@
 "use client";
 
-import { parseResumeText } from "@/lib/geminiParser";
+import { parseResumeWithGenericEngine } from "@/lib/genericResumeParser";
 
-export async function parseDocumentFile(file: File, apiKeyOverride?: string) {
+/**
+ * Client-side document extractor & generic resume parser.
+ * Extracts text from PDF, DOCX, or TXT files and parses them dynamically
+ * with 0 hardcoded values and 0 external LLM dependencies.
+ *
+ * If the file cannot be read or lacks selectable text, it throws a user-facing
+ * error rather than masking failures with dummy data.
+ */
+export async function parseDocumentFile(file: File) {
   const fileName = file.name.toLowerCase();
   let text = "";
 
   if (fileName.endsWith(".txt") || fileName.endsWith(".md") || fileName.endsWith(".json")) {
-    text = await file.text();
+    try {
+      text = await file.text();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to read text file: ${msg}`);
+    }
   } else if (fileName.endsWith(".pdf")) {
     try {
-      // Dynamic import pdfjs-dist legacy build for maximum compatibility across browsers
       const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
-      // Configure local worker if in browser
       if (typeof window !== "undefined") {
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
       }
@@ -23,14 +34,20 @@ export async function parseDocumentFile(file: File, apiKeyOverride?: string) {
         data: arrayBuffer,
         useSystemFonts: true,
         disableFontFace: true,
-        });
+      });
       const pdfDoc = await loadingTask.promise;
+
+      if (!pdfDoc || pdfDoc.numPages === 0) {
+        throw new Error("The PDF document has 0 pages or could not be loaded.");
+      }
 
       let extractedLines: string[] = [];
       for (let i = 1; i <= pdfDoc.numPages; i++) {
         const page = await pdfDoc.getPage(i);
         const textContent = await page.getTextContent();
-        const items = (textContent.items as any[]).filter(item => item.str && item.str.trim());
+        const items = (textContent.items as any[]).filter(
+          (item) => item.str && item.str.trim()
+        );
 
         // Group text items by Y coordinate to preserve true line structure
         let lastY: number | null = null;
@@ -51,13 +68,13 @@ export async function parseDocumentFile(file: File, apiKeyOverride?: string) {
         if (currentLine.trim()) {
           extractedLines.push(currentLine.trim());
         }
-        extractedLines.push(""); // Page boundary
+        extractedLines.push(""); // Page boundary separation
       }
 
       text = extractedLines.join("\n").trim();
-    } catch (err) {
-      console.warn("Primary PDF extraction error, falling back to direct stream parser:", err);
-      // Secondary fallback without worker
+    } catch (err: unknown) {
+      console.error("PDF text extraction error:", err);
+      // Secondary attempt without worker before failing
       try {
         const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "";
@@ -66,18 +83,22 @@ export async function parseDocumentFile(file: File, apiKeyOverride?: string) {
           data: arrayBuffer,
           useSystemFonts: true,
           disableFontFace: true,
-          }).promise;
+        }).promise;
 
-        let extractedText = "";
+        let secondaryText = "";
         for (let i = 1; i <= pdfDoc.numPages; i++) {
           const page = await pdfDoc.getPage(i);
           const textContent = await page.getTextContent();
-          extractedText += (textContent.items as any[]).map((it: any) => it.str).join(" ") + "\n";
+          secondaryText +=
+            (textContent.items as any[]).map((it: any) => it.str).join(" ") + "\n";
         }
-        text = extractedText.trim();
-      } catch (innerErr) {
-        console.error("All PDF extraction methods failed:", innerErr);
-        throw new Error("Unable to extract text from the PDF. Please ensure the PDF has selectable text (not scanned images) or try uploading DOCX/TXT.");
+        text = secondaryText.trim();
+      } catch (innerErr: unknown) {
+        const errMsg =
+          innerErr instanceof Error ? innerErr.message : "Unknown extraction error";
+        throw new Error(
+          `Unable to extract text from this PDF (${errMsg}). Please ensure the file has selectable text (not scanned images) and is not password protected.`
+        );
       }
     }
   } else if (fileName.endsWith(".docx")) {
@@ -86,17 +107,23 @@ export async function parseDocumentFile(file: File, apiKeyOverride?: string) {
       const arrayBuffer = await file.arrayBuffer();
       const result = await mammoth.extractRawText({ arrayBuffer });
       text = result.value;
-    } catch (err) {
-      console.warn("Mammoth docx parsing failed", err);
-      text = await file.text();
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to extract text from Word DOCX file: ${errMsg}`);
     }
   } else {
-    text = await file.text();
+    throw new Error(
+      `Unsupported file format: ${fileName}. Please upload a PDF, DOCX, or TXT resume.`
+    );
   }
 
-  if (!text || text.trim().length < 15) {
-    throw new Error("Could not extract readable text from the uploaded file.");
+  // Validate that meaningful text was extracted
+  if (!text || text.trim().length < 40) {
+    throw new Error(
+      "No readable text found in the uploaded file. Please ensure the document is not an image-only scan and contains standard resume text."
+    );
   }
 
-  return parseResumeText(text, apiKeyOverride);
+  // Run dynamic generic parsing - strictly no hardcoded fallback data
+  return parseResumeWithGenericEngine(text);
 }
